@@ -1,6 +1,6 @@
 module mikrotik-exporter
 
-go 1.13
+go 1.16
 
 require (
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
