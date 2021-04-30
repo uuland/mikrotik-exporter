@@ -3,13 +3,15 @@ package config
 import (
 	"io"
 	"io/ioutil"
+	"sync"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/routeros.v2"
+	"gopkg.in/yaml.v2"
 )
 
 // Config represents the configuration for the exporter
 type Config struct {
-	Devices  []Device `yaml:"devices"`
+	Devices  []*Device `yaml:"devices"`
 	Features struct {
 		BGP       bool `yaml:"bgp,omitempty"`
 		Conntrack bool `yaml:"conntrack,omitempty"`
@@ -34,12 +36,14 @@ type Config struct {
 
 // Device represents a target device
 type Device struct {
-	Name     string    `yaml:"name"`
-	Address  string    `yaml:"address,omitempty"`
-	Srv      SrvRecord `yaml:"srv,omitempty"`
-	User     string    `yaml:"user"`
-	Password string    `yaml:"password"`
-	Port     string    `yaml:"port"`
+	sync.Mutex
+	Name     string           `yaml:"name"`
+	Address  string           `yaml:"address,omitempty"`
+	Srv      SrvRecord        `yaml:"srv,omitempty"`
+	User     string           `yaml:"user"`
+	Password string           `yaml:"password"`
+	Port     string           `yaml:"port"`
+	Cli      *routeros.Client `yaml:"-"`
 }
 
 type SrvRecord struct {

@@ -3,20 +3,18 @@ package main
 import (
 	"bytes"
 	"flag"
-	"io/ioutil"
-	"os"
-
-	"github.com/prometheus/common/version"
-
 	"fmt"
+	"io/ioutil"
 	"net/http"
-
-	"mikrotik-exporter/collector"
-	"mikrotik-exporter/config"
+	"os"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/version"
 	log "github.com/sirupsen/logrus"
+
+	"mikrotik-exporter/collector"
+	"mikrotik-exporter/config"
 )
 
 // single device can be defined via CLI flags, multiple via config file.
@@ -130,8 +128,8 @@ func loadConfigFromFlags() (*config.Config, error) {
 	}
 
 	return &config.Config{
-		Devices: []config.Device{
-			config.Device{
+		Devices: []*config.Device{
+			{
 				Name:     *device,
 				Address:  *address,
 				User:     *user,
@@ -188,7 +186,7 @@ func createMetricsHandler() (http.Handler, error) {
 }
 
 func collectorOptions() []collector.Option {
-	opts := []collector.Option{}
+	var opts []collector.Option
 
 	if *withBgp || cfg.Features.BGP {
 		opts = append(opts, collector.WithBGP())

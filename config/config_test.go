@@ -42,7 +42,7 @@ func loadTestFile(t *testing.T) []byte {
 	return b
 }
 
-func assertDevice(name, address, user, password string, c Device, t *testing.T) {
+func assertDevice(name, address, user, password string, c *Device, t *testing.T) {
 	if c.Name != name {
 		t.Fatalf("expected name %s, got %s", name, c.Name)
 	}
