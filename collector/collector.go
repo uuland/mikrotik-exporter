@@ -2,10 +2,12 @@ package collector
 
 import (
 	"crypto/tls"
+	"errors"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/miekg/dns"
@@ -186,6 +188,14 @@ func (c *collector) connectAndCollect(d *config.Device, ch chan<- prometheus.Met
 		}).Error("error dialing device")
 		return err
 	}
+
+	defer func() {
+		if err != nil && errors.Is(err, syscall.EPIPE) {
+			d.Lock()
+			defer d.Unlock()
+			d.Cli = nil
+		}
+	}()
 
 	for _, co := range c.collectors {
 		ctx := &collectorContext{ch, d, cl}
