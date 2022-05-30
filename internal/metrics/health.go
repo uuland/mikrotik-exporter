@@ -1,4 +1,4 @@
-package collector
+package metrics
 
 import (
 	"strconv"
@@ -7,17 +7,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
+
+func init() {
+	Registry.Add("health", newhealthCollector)
+}
+
+func newhealthCollector() collector.Collector {
+	c := &healthCollector{}
+	c.init()
+	return c
+}
 
 type healthCollector struct {
 	props        []string
 	descriptions map[string]*prometheus.Desc
-}
-
-func newhealthCollector() routerOSCollector {
-	c := &healthCollector{}
-	c.init()
-	return c
 }
 
 func (c *healthCollector) init() {
@@ -27,17 +34,17 @@ func (c *healthCollector) init() {
 	helpText := []string{"Input voltage to the RouterOS board, in volts", "Temperature of RouterOS board, in degrees Celsius", "Temperature of RouterOS CPU, in degrees Celsius"}
 	c.descriptions = make(map[string]*prometheus.Desc)
 	for i, p := range c.props {
-		c.descriptions[p] = descriptionForPropertyNameHelpText("health", p, labelNames, helpText[i])
+		c.descriptions[p] = helper.DescriptionForPropertyNameHelpText("health", p, labelNames, helpText[i])
 	}
 }
 
-func (c *healthCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *healthCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range c.descriptions {
 		ch <- d
 	}
 }
 
-func (c *healthCollector) collect(ctx *collectorContext) error {
+func (c *healthCollector) Collect(ctx *collector.Context) error {
 	stats, err := c.fetch(ctx)
 	if err != nil {
 		return err
@@ -50,11 +57,11 @@ func (c *healthCollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *healthCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, error) {
-	reply, err := ctx.client.Run("/system/health/print", "=.proplist="+strings.Join(c.props, ","))
+func (c *healthCollector) fetch(ctx *collector.Context) ([]*proto.Sentence, error) {
+	reply, err := ctx.Client.Run("/system/health/print", "=.proplist="+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching system health metrics")
 		return nil, err
@@ -63,13 +70,13 @@ func (c *healthCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, error
 	return reply.Re, nil
 }
 
-func (c *healthCollector) collectForStat(re *proto.Sentence, ctx *collectorContext) {
+func (c *healthCollector) collectForStat(re *proto.Sentence, ctx *collector.Context) {
 	for _, p := range c.props[:3] {
 		c.collectMetricForProperty(p, re, ctx)
 	}
 }
 
-func (c *healthCollector) collectMetricForProperty(property string, re *proto.Sentence, ctx *collectorContext) {
+func (c *healthCollector) collectMetricForProperty(property string, re *proto.Sentence, ctx *collector.Context) {
 	var v float64
 	var err error
 
@@ -80,7 +87,7 @@ func (c *healthCollector) collectMetricForProperty(property string, re *proto.Se
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device":   ctx.device.Name,
+			"device":   ctx.Device.Name,
 			"property": property,
 			"value":    re.Map[property],
 			"error":    err,
@@ -89,5 +96,5 @@ func (c *healthCollector) collectMetricForProperty(property string, re *proto.Se
 	}
 
 	desc := c.descriptions[property]
-	ctx.ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, ctx.device.Name, ctx.device.Address)
+	ctx.Ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, ctx.Device.Name, ctx.Device.Address)
 }

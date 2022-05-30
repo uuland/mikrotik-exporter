@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"strconv"
@@ -7,6 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type opticsCollector struct {
@@ -20,23 +23,23 @@ type opticsCollector struct {
 	props           []string
 }
 
-func newOpticsCollector() routerOSCollector {
+func newOpticsCollector() collector.Collector {
 	const prefix = "optics"
 
 	labelNames := []string{"name", "address", "interface"}
 	return &opticsCollector{
-		rxStatusDesc:    description(prefix, "rx_status", "RX status (1 = no loss)", labelNames),
-		txStatusDesc:    description(prefix, "tx_status", "TX status (1 = no faults)", labelNames),
-		rxPowerDesc:     description(prefix, "rx_power_dbm", "RX power in dBM", labelNames),
-		txPowerDesc:     description(prefix, "tx_power_dbm", "TX power in dBM", labelNames),
-		temperatureDesc: description(prefix, "temperature_celsius", "temperature in degree celsius", labelNames),
-		txBiasDesc:      description(prefix, "tx_bias_ma", "bias is milliamps", labelNames),
-		voltageDesc:     description(prefix, "voltage_volt", "volage in volt", labelNames),
+		rxStatusDesc:    helper.Description(prefix, "rx_status", "RX status (1 = no loss)", labelNames),
+		txStatusDesc:    helper.Description(prefix, "tx_status", "TX status (1 = no faults)", labelNames),
+		rxPowerDesc:     helper.Description(prefix, "rx_power_dbm", "RX power in dBM", labelNames),
+		txPowerDesc:     helper.Description(prefix, "tx_power_dbm", "TX power in dBM", labelNames),
+		temperatureDesc: helper.Description(prefix, "temperature_celsius", "temperature in degree celsius", labelNames),
+		txBiasDesc:      helper.Description(prefix, "tx_bias_ma", "bias is milliamps", labelNames),
+		voltageDesc:     helper.Description(prefix, "voltage_volt", "volage in volt", labelNames),
 		props:           []string{"sfp-rx-loss", "sfp-tx-fault", "sfp-temperature", "sfp-supply-voltage", "sfp-tx-bias-current", "sfp-tx-power", "sfp-rx-power"},
 	}
 }
 
-func (c *opticsCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *opticsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.rxStatusDesc
 	ch <- c.txStatusDesc
 	ch <- c.rxPowerDesc
@@ -46,11 +49,11 @@ func (c *opticsCollector) describe(ch chan<- *prometheus.Desc) {
 	ch <- c.voltageDesc
 }
 
-func (c *opticsCollector) collect(ctx *collectorContext) error {
-	reply, err := ctx.client.Run("/interface/ethernet/print", "=.proplist=name")
+func (c *opticsCollector) Collect(ctx *collector.Context) error {
+	reply, err := ctx.Client.Run("/interface/ethernet/print", "=.proplist=name")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching interface metrics")
 		return err
@@ -71,14 +74,14 @@ func (c *opticsCollector) collect(ctx *collectorContext) error {
 	return c.collectOpticalMetricsForInterfaces(ifaces, ctx)
 }
 
-func (c *opticsCollector) collectOpticalMetricsForInterfaces(ifaces []string, ctx *collectorContext) error {
-	reply, err := ctx.client.Run("/interface/ethernet/monitor",
+func (c *opticsCollector) collectOpticalMetricsForInterfaces(ifaces []string, ctx *collector.Context) error {
+	reply, err := ctx.Client.Run("/interface/ethernet/monitor",
 		"=numbers="+strings.Join(ifaces, ","),
 		"=once=",
 		"=.proplist=name,"+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching interface monitor metrics")
 		return err
@@ -96,7 +99,7 @@ func (c *opticsCollector) collectOpticalMetricsForInterfaces(ifaces []string, ct
 	return nil
 }
 
-func (c *opticsCollector) collectMetricsForInterface(name string, se *proto.Sentence, ctx *collectorContext) {
+func (c *opticsCollector) collectMetricsForInterface(name string, se *proto.Sentence, ctx *collector.Context) {
 	for _, prop := range c.props {
 		v, ok := se.Map[prop]
 		if !ok {
@@ -106,7 +109,7 @@ func (c *opticsCollector) collectMetricsForInterface(name string, se *proto.Sent
 		value, err := c.valueForKey(prop, v)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"device":    ctx.device.Name,
+				"device":    ctx.Device.Name,
 				"interface": name,
 				"property":  prop,
 				"error":     err,
@@ -114,7 +117,7 @@ func (c *opticsCollector) collectMetricsForInterface(name string, se *proto.Sent
 			return
 		}
 
-		ctx.ch <- prometheus.MustNewConstMetric(c.descForKey(prop), prometheus.GaugeValue, value, ctx.device.Name, ctx.device.Address, name)
+		ctx.Ch <- prometheus.MustNewConstMetric(c.descForKey(prop), prometheus.GaugeValue, value, ctx.Device.Name, ctx.Device.Address, name)
 	}
 }
 

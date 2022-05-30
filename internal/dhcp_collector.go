@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"fmt"
@@ -6,6 +6,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type dhcpCollector struct {
@@ -16,20 +19,20 @@ func (c *dhcpCollector) init() {
 	const prefix = "dhcp"
 
 	labelNames := []string{"name", "address", "server"}
-	c.leasesActiveCountDesc = description(prefix, "leases_active_count", "number of active leases per DHCP server", labelNames)
+	c.leasesActiveCountDesc = helper.Description(prefix, "leases_active_count", "number of active leases per DHCP server", labelNames)
 }
 
-func newDHCPCollector() routerOSCollector {
+func newDHCPCollector() collector.Collector {
 	c := &dhcpCollector{}
 	c.init()
 	return c
 }
 
-func (c *dhcpCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *dhcpCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.leasesActiveCountDesc
 }
 
-func (c *dhcpCollector) collect(ctx *collectorContext) error {
+func (c *dhcpCollector) Collect(ctx *collector.Context) error {
 	names, err := c.fetchDHCPServerNames(ctx)
 	if err != nil {
 		return err
@@ -45,11 +48,11 @@ func (c *dhcpCollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *dhcpCollector) fetchDHCPServerNames(ctx *collectorContext) ([]string, error) {
-	reply, err := ctx.client.Run("/ip/dhcp-server/print", "=.proplist=name")
+func (c *dhcpCollector) fetchDHCPServerNames(ctx *collector.Context) ([]string, error) {
+	reply, err := ctx.Client.Run("/ip/dhcp-server/print", "=.proplist=name")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching DHCP server names")
 		return nil, err
@@ -63,12 +66,12 @@ func (c *dhcpCollector) fetchDHCPServerNames(ctx *collectorContext) ([]string, e
 	return names, nil
 }
 
-func (c *dhcpCollector) colllectForDHCPServer(ctx *collectorContext, dhcpServer string) error {
-	reply, err := ctx.client.Run("/ip/dhcp-server/lease/print", fmt.Sprintf("?server=%s", dhcpServer), "=active=", "=count-only=")
+func (c *dhcpCollector) colllectForDHCPServer(ctx *collector.Context, dhcpServer string) error {
+	reply, err := ctx.Client.Run("/ip/dhcp-server/lease/print", fmt.Sprintf("?server=%s", dhcpServer), "=active=", "=count-only=")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"dhcp_server": dhcpServer,
-			"device":      ctx.device.Name,
+			"device":      ctx.Device.Name,
 			"error":       err,
 		}).Error("error fetching DHCP lease counts")
 		return err
@@ -80,12 +83,12 @@ func (c *dhcpCollector) colllectForDHCPServer(ctx *collectorContext, dhcpServer 
 	if err != nil {
 		log.WithFields(log.Fields{
 			"dhcp_server": dhcpServer,
-			"device":      ctx.device.Name,
+			"device":      ctx.Device.Name,
 			"error":       err,
 		}).Error("error parsing DHCP lease counts")
 		return err
 	}
 
-	ctx.ch <- prometheus.MustNewConstMetric(c.leasesActiveCountDesc, prometheus.GaugeValue, v, ctx.device.Name, ctx.device.Address, dhcpServer)
+	ctx.Ch <- prometheus.MustNewConstMetric(c.leasesActiveCountDesc, prometheus.GaugeValue, v, ctx.Device.Name, ctx.Device.Address, dhcpServer)
 	return nil
 }

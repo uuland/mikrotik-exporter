@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"strconv"
@@ -7,6 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type wlanSTACollector struct {
@@ -14,7 +17,7 @@ type wlanSTACollector struct {
 	descriptions map[string]*prometheus.Desc
 }
 
-func newWlanSTACollector() routerOSCollector {
+func newWlanSTACollector() collector.Collector {
 	c := &wlanSTACollector{}
 	c.init()
 	return c
@@ -25,21 +28,21 @@ func (c *wlanSTACollector) init() {
 	labelNames := []string{"name", "address", "interface", "mac_address"}
 	c.descriptions = make(map[string]*prometheus.Desc)
 	for _, p := range c.props[:len(c.props)-3] {
-		c.descriptions[p] = descriptionForPropertyName("wlan_station", p, labelNames)
+		c.descriptions[p] = helper.DescriptionForPropertyName("wlan_station", p, labelNames)
 	}
 	for _, p := range c.props[len(c.props)-3:] {
-		c.descriptions["tx_"+p] = descriptionForPropertyName("wlan_station", "tx_"+p, labelNames)
-		c.descriptions["rx_"+p] = descriptionForPropertyName("wlan_station", "rx_"+p, labelNames)
+		c.descriptions["tx_"+p] = helper.DescriptionForPropertyName("wlan_station", "tx_"+p, labelNames)
+		c.descriptions["rx_"+p] = helper.DescriptionForPropertyName("wlan_station", "rx_"+p, labelNames)
 	}
 }
 
-func (c *wlanSTACollector) describe(ch chan<- *prometheus.Desc) {
+func (c *wlanSTACollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range c.descriptions {
 		ch <- d
 	}
 }
 
-func (c *wlanSTACollector) collect(ctx *collectorContext) error {
+func (c *wlanSTACollector) Collect(ctx *collector.Context) error {
 	stats, err := c.fetch(ctx)
 	if err != nil {
 		return err
@@ -52,11 +55,11 @@ func (c *wlanSTACollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *wlanSTACollector) fetch(ctx *collectorContext) ([]*proto.Sentence, error) {
-	reply, err := ctx.client.Run("/interface/wireless/registration-table/print", "=.proplist="+strings.Join(c.props, ","))
+func (c *wlanSTACollector) fetch(ctx *collector.Context) ([]*proto.Sentence, error) {
+	reply, err := ctx.Client.Run("/interface/wireless/registration-table/print", "=.proplist="+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching wlan station metrics")
 		return nil, err
@@ -65,7 +68,7 @@ func (c *wlanSTACollector) fetch(ctx *collectorContext) ([]*proto.Sentence, erro
 	return reply.Re, nil
 }
 
-func (c *wlanSTACollector) collectForStat(re *proto.Sentence, ctx *collectorContext) {
+func (c *wlanSTACollector) collectForStat(re *proto.Sentence, ctx *collector.Context) {
 	iface := re.Map["interface"]
 	mac := re.Map["mac-address"]
 
@@ -77,7 +80,7 @@ func (c *wlanSTACollector) collectForStat(re *proto.Sentence, ctx *collectorCont
 	}
 }
 
-func (c *wlanSTACollector) collectMetricForProperty(property, iface, mac string, re *proto.Sentence, ctx *collectorContext) {
+func (c *wlanSTACollector) collectMetricForProperty(property, iface, mac string, re *proto.Sentence, ctx *collector.Context) {
 	if re.Map[property] == "" {
 		return
 	}
@@ -89,7 +92,7 @@ func (c *wlanSTACollector) collectMetricForProperty(property, iface, mac string,
 	v, err := strconv.ParseFloat(p, 64)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device":   ctx.device.Name,
+			"device":   ctx.Device.Name,
 			"property": property,
 			"value":    re.Map[property],
 			"error":    err,
@@ -98,14 +101,14 @@ func (c *wlanSTACollector) collectMetricForProperty(property, iface, mac string,
 	}
 
 	desc := c.descriptions[property]
-	ctx.ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, ctx.device.Name, ctx.device.Address, iface, mac)
+	ctx.Ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, ctx.Device.Name, ctx.Device.Address, iface, mac)
 }
 
-func (c *wlanSTACollector) collectMetricForTXRXCounters(property, iface, mac string, re *proto.Sentence, ctx *collectorContext) {
-	tx, rx, err := splitStringToFloats(re.Map[property])
+func (c *wlanSTACollector) collectMetricForTXRXCounters(property, iface, mac string, re *proto.Sentence, ctx *collector.Context) {
+	tx, rx, err := helper.SplitStringToFloats(re.Map[property])
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device":   ctx.device.Name,
+			"device":   ctx.Device.Name,
 			"property": property,
 			"value":    re.Map[property],
 			"error":    err,
@@ -114,6 +117,6 @@ func (c *wlanSTACollector) collectMetricForTXRXCounters(property, iface, mac str
 	}
 	desc_tx := c.descriptions["tx_"+property]
 	desc_rx := c.descriptions["rx_"+property]
-	ctx.ch <- prometheus.MustNewConstMetric(desc_tx, prometheus.CounterValue, tx, ctx.device.Name, ctx.device.Address, iface, mac)
-	ctx.ch <- prometheus.MustNewConstMetric(desc_rx, prometheus.CounterValue, rx, ctx.device.Name, ctx.device.Address, iface, mac)
+	ctx.Ch <- prometheus.MustNewConstMetric(desc_tx, prometheus.CounterValue, tx, ctx.Device.Name, ctx.Device.Address, iface, mac)
+	ctx.Ch <- prometheus.MustNewConstMetric(desc_rx, prometheus.CounterValue, rx, ctx.Device.Name, ctx.Device.Address, iface, mac)
 }

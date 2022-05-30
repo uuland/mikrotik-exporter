@@ -1,4 +1,4 @@
-package collector
+package helper
 
 import (
 	"fmt"
@@ -12,23 +12,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var durationRegex *regexp.Regexp
-var durationParts [5]time.Duration
+const namespace = "mikrotik"
 
-func init() {
-	durationRegex = regexp.MustCompile(`(?:(\d*)w)?(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?`)
-	durationParts = [5]time.Duration{time.Hour * 168, time.Hour * 24, time.Hour, time.Minute, time.Second}
-}
+var durationRegex = regexp.MustCompile(`(?:(\d*)w)?(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?`)
+var durationParts = [5]time.Duration{time.Hour * 168, time.Hour * 24, time.Hour, time.Minute, time.Second}
 
 func metricStringCleanup(in string) string {
 	return strings.Replace(in, "-", "_", -1)
 }
 
-func descriptionForPropertyName(prefix, property string, labelNames []string) *prometheus.Desc {
-	return descriptionForPropertyNameHelpText(prefix, property, labelNames, property)
+func DescriptionForPropertyName(prefix, property string, labelNames []string) *prometheus.Desc {
+	return DescriptionForPropertyNameHelpText(prefix, property, labelNames, property)
 }
 
-func descriptionForPropertyNameHelpText(prefix, property string, labelNames []string, helpText string) *prometheus.Desc {
+func DescriptionForPropertyNameHelpText(prefix, property string, labelNames []string, helpText string) *prometheus.Desc {
 	return prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, prefix, metricStringCleanup(property)),
 		helpText,
@@ -37,7 +34,7 @@ func descriptionForPropertyNameHelpText(prefix, property string, labelNames []st
 	)
 }
 
-func description(prefix, name, helpText string, labelNames []string) *prometheus.Desc {
+func Description(prefix, name, helpText string, labelNames []string) *prometheus.Desc {
 	return prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, prefix, name),
 		helpText,
@@ -46,7 +43,7 @@ func description(prefix, name, helpText string, labelNames []string) *prometheus
 	)
 }
 
-func splitStringToFloats(metric string) (float64, float64, error) {
+func SplitStringToFloats(metric string) (float64, float64, error) {
 	strs := strings.Split(metric, ",")
 	if len(strs) == 0 {
 		return 0, 0, nil
@@ -62,7 +59,7 @@ func splitStringToFloats(metric string) (float64, float64, error) {
 	return m1, m2, nil
 }
 
-func parseDuration(duration string) (float64, error) {
+func ParseDuration(duration string) (float64, error) {
 	var u time.Duration
 
 	reMatch := durationRegex.FindAllStringSubmatch(duration, -1)

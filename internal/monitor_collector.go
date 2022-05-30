@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"strings"
@@ -7,6 +7,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type monitorCollector struct {
@@ -14,7 +17,7 @@ type monitorCollector struct {
 	descriptions map[string]*prometheus.Desc
 }
 
-func newMonitorCollector() routerOSCollector {
+func newMonitorCollector() collector.Collector {
 	c := &monitorCollector{}
 	c.init()
 	return c
@@ -25,21 +28,21 @@ func (c *monitorCollector) init() {
 	labelNames := []string{"name", "address", "interface"}
 	c.descriptions = make(map[string]*prometheus.Desc)
 	for _, p := range c.props {
-		c.descriptions[p] = descriptionForPropertyName("monitor", p, labelNames)
+		c.descriptions[p] = helper.DescriptionForPropertyName("monitor", p, labelNames)
 	}
 }
 
-func (c *monitorCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *monitorCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range c.descriptions {
 		ch <- d
 	}
 }
 
-func (c *monitorCollector) collect(ctx *collectorContext) error {
-	reply, err := ctx.client.Run("/interface/ethernet/print", "=.proplist=name")
+func (c *monitorCollector) Collect(ctx *collector.Context) error {
+	reply, err := ctx.Client.Run("/interface/ethernet/print", "=.proplist=name")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching ethernet interfaces")
 		return err
@@ -53,15 +56,15 @@ func (c *monitorCollector) collect(ctx *collectorContext) error {
 	return c.collectForMonitor(eths, ctx)
 }
 
-func (c *monitorCollector) collectForMonitor(eths []string, ctx *collectorContext) error {
-	reply, err := ctx.client.Run("/interface/ethernet/monitor",
+func (c *monitorCollector) collectForMonitor(eths []string, ctx *collector.Context) error {
+	reply, err := ctx.Client.Run("/interface/ethernet/monitor",
 		"=numbers="+strings.Join(eths, ","),
 		"=once=",
 		"=.proplist=name,"+strings.Join(c.props, ","))
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching ethernet monitor info")
 		return err
@@ -74,7 +77,7 @@ func (c *monitorCollector) collectForMonitor(eths []string, ctx *collectorContex
 	return nil
 }
 
-func (c *monitorCollector) collectMetricsForEth(name string, se *proto.Sentence, ctx *collectorContext) {
+func (c *monitorCollector) collectMetricsForEth(name string, se *proto.Sentence, ctx *collector.Context) {
 	for _, prop := range c.props {
 		v, ok := se.Map[prop]
 		if !ok {
@@ -83,7 +86,7 @@ func (c *monitorCollector) collectMetricsForEth(name string, se *proto.Sentence,
 
 		value := float64(c.valueForProp(prop, v))
 
-		ctx.ch <- prometheus.MustNewConstMetric(c.descriptions[prop], prometheus.GaugeValue, value, ctx.device.Name, ctx.device.Address, name)
+		ctx.Ch <- prometheus.MustNewConstMetric(c.descriptions[prop], prometheus.GaugeValue, value, ctx.Device.Name, ctx.Device.Address, name)
 
 	}
 

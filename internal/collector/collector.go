@@ -15,37 +15,29 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2"
 
-	"mikrotik-exporter/config"
+	"mikrotik-exporter/internal/config"
+	"mikrotik-exporter/internal/helper"
 )
 
 const (
-	namespace  = "mikrotik"
-	apiPort    = "8728"
-	apiPortTLS = "8729"
-	dnsPort    = 53
-
 	// DefaultTimeout defines the default timeout when connecting to a router
 	DefaultTimeout = 5 * time.Second
 )
 
 var (
-	scrapeDurationDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "scrape", "collector_duration_seconds"),
-		"mikrotik_exporter: duration of a collector scrape",
-		[]string{"device"},
-		nil,
+	scrapeDurationDesc = helper.DescriptionForPropertyNameHelpText(
+		"scrape", "collector_duration_seconds",
+		[]string{"device"}, "mikrotik_exporter: duration of a collector scrape",
 	)
-	scrapeSuccessDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "scrape", "collector_success"),
-		"mikrotik_exporter: whether a collector succeeded",
-		[]string{"device"},
-		nil,
+	scrapeSuccessDesc = helper.DescriptionForPropertyNameHelpText(
+		"scrape", "collector_success",
+		[]string{"device"}, "mikrotik_exporter: whether a collector succeeded",
 	)
 )
 
 type collector struct {
 	devices     []*config.Device
-	collectors  []routerOSCollector
+	collectors  []Collector
 	timeout     time.Duration
 	enableTLS   bool
 	insecureTLS bool
@@ -61,12 +53,9 @@ func NewCollector(cfg *config.Config, opts ...Option) (prometheus.Collector, err
 	}).Info("setting up collector for devices")
 
 	c := &collector{
-		devices: cfg.Devices,
-		timeout: DefaultTimeout,
-		collectors: []routerOSCollector{
-			newInterfaceCollector(),
-			newResourceCollector(),
-		},
+		devices:    cfg.Devices,
+		timeout:    DefaultTimeout,
+		collectors: make([]Collector, 0),
 	}
 
 	for _, o := range opts {
@@ -86,7 +75,7 @@ func (c *collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- scrapeSuccessDesc
 
 	for _, co := range c.collectors {
-		co.describe(ch)
+		co.Describe(ch)
 	}
 }
 
@@ -109,7 +98,7 @@ func (c *collector) prepare() error {
 		}).Info("SRV configuration detected")
 
 		conf, _ := dns.ClientConfigFromFile("/etc/resolv.conf")
-		dnsServer := net.JoinHostPort(conf.Servers[0], strconv.Itoa(dnsPort))
+		dnsServer := net.JoinHostPort(conf.Servers[0], "53")
 		if (config.DnsServer{}) != dev.Srv.Dns {
 			dnsServer = net.JoinHostPort(dev.Srv.Dns.Address, strconv.Itoa(dev.Srv.Dns.Port))
 			log.WithFields(log.Fields{
@@ -198,8 +187,8 @@ func (c *collector) connectAndCollect(d *config.Device, ch chan<- prometheus.Met
 	}()
 
 	for _, co := range c.collectors {
-		ctx := &collectorContext{ch, d, cl}
-		err = co.collect(ctx)
+		ctx := &Context{ch, d, cl}
+		err = co.Collect(ctx)
 		if err != nil {
 			return err
 		}
@@ -245,7 +234,7 @@ func (c *collector) connect(d *config.Device) (*routeros.Client, error) {
 	log.WithField("device", d.Name).Debug("trying to Dial")
 	if !c.enableTLS {
 		if (d.Port) == "" {
-			d.Port = apiPort
+			d.Port = "8728"
 		}
 		conn, err = net.DialTimeout("tcp", d.Address+":"+d.Port, c.timeout)
 		if err != nil {
@@ -256,7 +245,7 @@ func (c *collector) connect(d *config.Device) (*routeros.Client, error) {
 			InsecureSkipVerify: c.insecureTLS,
 		}
 		if (d.Port) == "" {
-			d.Port = apiPortTLS
+			d.Port = "8729"
 		}
 		conn, err = tls.DialWithDialer(&net.Dialer{
 			Timeout: c.timeout,

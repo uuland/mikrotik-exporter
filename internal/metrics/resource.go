@@ -1,4 +1,4 @@
-package collector
+package metrics
 
 import (
 	"fmt"
@@ -10,25 +10,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
-var uptimeRegex *regexp.Regexp
-var uptimeParts [5]time.Duration
+var uptimeRegex = regexp.MustCompile(`(?:(\d*)w)?(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?`)
+var uptimeParts = [5]time.Duration{time.Hour * 168, time.Hour * 24, time.Hour, time.Minute, time.Second}
 
 func init() {
-	uptimeRegex = regexp.MustCompile(`(?:(\d*)w)?(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?`)
-	uptimeParts = [5]time.Duration{time.Hour * 168, time.Hour * 24, time.Hour, time.Minute, time.Second}
+	Registry.Add("resource", newResourceCollector)
+}
+
+func newResourceCollector() collector.Collector {
+	c := &resourceCollector{}
+	c.init()
+	return c
 }
 
 type resourceCollector struct {
 	props        []string
 	descriptions map[string]*prometheus.Desc
-}
-
-func newResourceCollector() routerOSCollector {
-	c := &resourceCollector{}
-	c.init()
-	return c
 }
 
 func (c *resourceCollector) init() {
@@ -37,17 +39,17 @@ func (c *resourceCollector) init() {
 	labelNames := []string{"name", "address", "boardname", "version"}
 	c.descriptions = make(map[string]*prometheus.Desc)
 	for _, p := range c.props {
-		c.descriptions[p] = descriptionForPropertyName("system", p, labelNames)
+		c.descriptions[p] = helper.DescriptionForPropertyName("system", p, labelNames)
 	}
 }
 
-func (c *resourceCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *resourceCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range c.descriptions {
 		ch <- d
 	}
 }
 
-func (c *resourceCollector) collect(ctx *collectorContext) error {
+func (c *resourceCollector) Collect(ctx *collector.Context) error {
 	stats, err := c.fetch(ctx)
 	if err != nil {
 		return err
@@ -60,11 +62,11 @@ func (c *resourceCollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *resourceCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, error) {
-	reply, err := ctx.client.Run("/system/resource/print", "=.proplist="+strings.Join(c.props, ","))
+func (c *resourceCollector) fetch(ctx *collector.Context) ([]*proto.Sentence, error) {
+	reply, err := ctx.Client.Run("/system/resource/print", "=.proplist="+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching system resource metrics")
 		return nil, err
@@ -73,13 +75,13 @@ func (c *resourceCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, err
 	return reply.Re, nil
 }
 
-func (c *resourceCollector) collectForStat(re *proto.Sentence, ctx *collectorContext) {
+func (c *resourceCollector) collectForStat(re *proto.Sentence, ctx *collector.Context) {
 	for _, p := range c.props[:6] {
 		c.collectMetricForProperty(p, re, ctx)
 	}
 }
 
-func (c *resourceCollector) collectMetricForProperty(property string, re *proto.Sentence, ctx *collectorContext) {
+func (c *resourceCollector) collectMetricForProperty(property string, re *proto.Sentence, ctx *collector.Context) {
 	var v float64
 	var err error
 	//	const boardname = "BOARD"
@@ -99,7 +101,7 @@ func (c *resourceCollector) collectMetricForProperty(property string, re *proto.
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device":   ctx.device.Name,
+			"device":   ctx.Device.Name,
 			"property": property,
 			"value":    re.Map[property],
 			"error":    err,
@@ -108,7 +110,7 @@ func (c *resourceCollector) collectMetricForProperty(property string, re *proto.
 	}
 
 	desc := c.descriptions[property]
-	ctx.ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, v, ctx.device.Name, ctx.device.Address, boardname, version)
+	ctx.Ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, v, ctx.Device.Name, ctx.Device.Address, boardname, version)
 }
 
 func parseUptime(uptime string) (float64, error) {

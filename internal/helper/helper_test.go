@@ -1,4 +1,4 @@
-package collector
+package helper
 
 import (
 	"math"
@@ -59,7 +59,7 @@ func TestSplitStringToFloats(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		f1, f2, err := splitStringToFloats(testCase.input)
+		f1, f2, err := SplitStringToFloats(testCase.input)
 
 		switch testCase.hasError {
 		case true:
@@ -123,7 +123,7 @@ func TestParseDuration(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		f, err := parseDuration(testCase.input)
+		f, err := ParseDuration(testCase.input)
 
 		switch testCase.hasError {
 		case true:

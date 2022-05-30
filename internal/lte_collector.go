@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"fmt"
@@ -8,6 +8,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type lteCollector struct {
@@ -15,28 +18,28 @@ type lteCollector struct {
 	descriptions map[string]*prometheus.Desc
 }
 
-func newLteCollector() routerOSCollector {
+func newLteCollector() collector.Collector {
 	c := &lteCollector{}
 	c.init()
 	return c
 }
 
 func (c *lteCollector) init() {
-	c.props = []string{"current-cellid", "primary-band" ,"ca-band", "rssi", "rsrp", "rsrq", "sinr"}
+	c.props = []string{"current-cellid", "primary-band", "ca-band", "rssi", "rsrp", "rsrq", "sinr"}
 	labelNames := []string{"name", "address", "interface", "cellid", "primaryband", "caband"}
 	c.descriptions = make(map[string]*prometheus.Desc)
 	for _, p := range c.props {
-		c.descriptions[p] = descriptionForPropertyName("lte_interface", p, labelNames)
+		c.descriptions[p] = helper.DescriptionForPropertyName("lte_interface", p, labelNames)
 	}
 }
 
-func (c *lteCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *lteCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range c.descriptions {
 		ch <- d
 	}
 }
 
-func (c *lteCollector) collect(ctx *collectorContext) error {
+func (c *lteCollector) Collect(ctx *collector.Context) error {
 	names, err := c.fetchInterfaceNames(ctx)
 	if err != nil {
 		return err
@@ -52,11 +55,11 @@ func (c *lteCollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *lteCollector) fetchInterfaceNames(ctx *collectorContext) ([]string, error) {
-	reply, err := ctx.client.Run("/interface/lte/print", "?disabled=false", "=.proplist=name")
+func (c *lteCollector) fetchInterfaceNames(ctx *collector.Context) ([]string, error) {
+	reply, err := ctx.Client.Run("/interface/lte/print", "?disabled=false", "=.proplist=name")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching lte interface names")
 		return nil, err
@@ -70,12 +73,12 @@ func (c *lteCollector) fetchInterfaceNames(ctx *collectorContext) ([]string, err
 	return names, nil
 }
 
-func (c *lteCollector) collectForInterface(iface string, ctx *collectorContext) error {
-	reply, err := ctx.client.Run("/interface/lte/info", fmt.Sprintf("=number=%s", iface), "=once=", "=.proplist="+strings.Join(c.props, ","))
+func (c *lteCollector) collectForInterface(iface string, ctx *collector.Context) error {
+	reply, err := ctx.Client.Run("/interface/lte/info", fmt.Sprintf("=number=%s", iface), "=once=", "=.proplist="+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"interface": iface,
-			"device":    ctx.device.Name,
+			"device":    ctx.Device.Name,
 			"error":     err,
 		}).Error("error fetching interface statistics")
 		return err
@@ -90,7 +93,7 @@ func (c *lteCollector) collectForInterface(iface string, ctx *collectorContext) 
 	return nil
 }
 
-func (c *lteCollector) collectMetricForProperty(property, iface string, re *proto.Sentence, ctx *collectorContext) {
+func (c *lteCollector) collectMetricForProperty(property, iface string, re *proto.Sentence, ctx *collector.Context) {
 	desc := c.descriptions[property]
 	current_cellid := re.Map["current-cellid"]
 	// get only band and its width, drop earfcn and phy-cellid info
@@ -111,11 +114,11 @@ func (c *lteCollector) collectMetricForProperty(property, iface string, re *prot
 		log.WithFields(log.Fields{
 			"property":  property,
 			"interface": iface,
-			"device":    ctx.device.Name,
+			"device":    ctx.Device.Name,
 			"error":     err,
 		}).Error("error parsing interface metric value")
 		return
 	}
 
-	ctx.ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, ctx.device.Name, ctx.device.Address, iface, current_cellid, primaryband, caband)
+	ctx.Ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, v, ctx.Device.Name, ctx.Device.Address, iface, current_cellid, primaryband, caband)
 }

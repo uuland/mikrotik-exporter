@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"strconv"
@@ -7,6 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type dhcpLeaseCollector struct {
@@ -18,21 +21,21 @@ func (c *dhcpLeaseCollector) init() {
 	c.props = []string{"active-mac-address", "server", "status", "expires-after", "active-address", "host-name"}
 
 	labelNames := []string{"name", "address", "activemacaddress", "server", "status", "expiresafter", "activeaddress", "hostname"}
-	c.descriptions = description("dhcp", "leases_metrics", "number of metrics", labelNames)
+	c.descriptions = helper.Description("dhcp", "leases_metrics", "number of metrics", labelNames)
 
 }
 
-func newDHCPLCollector() routerOSCollector {
+func newDHCPLCollector() collector.Collector {
 	c := &dhcpLeaseCollector{}
 	c.init()
 	return c
 }
 
-func (c *dhcpLeaseCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *dhcpLeaseCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.descriptions
 }
 
-func (c *dhcpLeaseCollector) collect(ctx *collectorContext) error {
+func (c *dhcpLeaseCollector) Collect(ctx *collector.Context) error {
 	stats, err := c.fetch(ctx)
 	if err != nil {
 		return err
@@ -45,11 +48,11 @@ func (c *dhcpLeaseCollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *dhcpLeaseCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, error) {
-	reply, err := ctx.client.Run("/ip/dhcp-server/lease/print", "?status=bound", "=.proplist="+strings.Join(c.props, ","))
+func (c *dhcpLeaseCollector) fetch(ctx *collector.Context) ([]*proto.Sentence, error) {
+	reply, err := ctx.Client.Run("/ip/dhcp-server/lease/print", "?status=bound", "=.proplist="+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching DHCP leases metrics")
 		return nil, err
@@ -58,13 +61,13 @@ func (c *dhcpLeaseCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, er
 	return reply.Re, nil
 }
 
-func (c *dhcpLeaseCollector) collectMetric(ctx *collectorContext, re *proto.Sentence) {
+func (c *dhcpLeaseCollector) collectMetric(ctx *collector.Context, re *proto.Sentence) {
 	v := 1.0
 
-	f, err := parseDuration(re.Map["expires-after"])
+	f, err := helper.ParseDuration(re.Map["expires-after"])
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device":   ctx.device.Name,
+			"device":   ctx.Device.Name,
 			"property": "expires-after",
 			"value":    re.Map["expires-after"],
 			"error":    err,
@@ -78,5 +81,5 @@ func (c *dhcpLeaseCollector) collectMetric(ctx *collectorContext, re *proto.Sent
 	activeaddress := re.Map["active-address"]
 	hostname := re.Map["host-name"]
 
-	ctx.ch <- prometheus.MustNewConstMetric(c.descriptions, prometheus.GaugeValue, v, ctx.device.Name, ctx.device.Address, activemacaddress, server, status, strconv.FormatFloat(f, 'f', 0, 64), activeaddress, hostname)
+	ctx.Ch <- prometheus.MustNewConstMetric(c.descriptions, prometheus.GaugeValue, v, ctx.Device.Name, ctx.Device.Address, activemacaddress, server, status, strconv.FormatFloat(f, 'f', 0, 64), activeaddress, hostname)
 }

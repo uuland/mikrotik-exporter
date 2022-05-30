@@ -7,14 +7,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
 	log "github.com/sirupsen/logrus"
 
-	"mikrotik-exporter/collector"
-	"mikrotik-exporter/config"
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/config"
+	"mikrotik-exporter/internal/metrics"
 )
 
 // single device can be defined via CLI flags, multiple via config file.
@@ -32,26 +34,8 @@ var (
 	timeout     = flag.Duration("timeout", collector.DefaultTimeout, "timeout when connecting to devices")
 	tls         = flag.Bool("tls", false, "use tls to connect to routers")
 	user        = flag.String("user", "", "user for authentication with single device")
+	feats       = flag.String("features", "", "with features")
 	ver         = flag.Bool("version", false, "find the version of binary")
-
-	withBgp       = flag.Bool("with-bgp", false, "retrieves BGP routing infrormation")
-	withConntrack = flag.Bool("with-conntrack", false, "retrieves connection tracking metrics")
-	withRoutes    = flag.Bool("with-routes", false, "retrieves routing table information")
-	withDHCP      = flag.Bool("with-dhcp", false, "retrieves DHCP server metrics")
-	withDHCPL     = flag.Bool("with-dhcpl", false, "retrieves DHCP server lease metrics")
-	withDHCPv6    = flag.Bool("with-dhcpv6", false, "retrieves DHCPv6 server metrics")
-	withFirmware  = flag.Bool("with-firmware", false, "retrieves firmware versions")
-	withHealth    = flag.Bool("with-health", false, "retrieves board Health metrics")
-	withPOE       = flag.Bool("with-poe", false, "retrieves PoE metrics")
-	withPools     = flag.Bool("with-pools", false, "retrieves IP(v6) pool metrics")
-	withOptics    = flag.Bool("with-optics", false, "retrieves optical diagnostic metrics")
-	withW60G      = flag.Bool("with-w60g", false, "retrieves w60g interface metrics")
-	withWlanSTA   = flag.Bool("with-wlansta", false, "retrieves connected wlan station metrics")
-	withWlanIF    = flag.Bool("with-wlanif", false, "retrieves wlan interface metrics")
-	withMonitor   = flag.Bool("with-monitor", false, "retrieves ethernet interface monitor info")
-	withIpsec     = flag.Bool("with-ipsec", false, "retrieves ipsec metrics")
-	withLte       = flag.Bool("with-lte", false, "retrieves lte metrics")
-	withNetwatch  = flag.Bool("with-netwatch", false, "retrieves netwatch metrics")
 
 	cfg *config.Config
 
@@ -166,7 +150,21 @@ func startServer() {
 }
 
 func createMetricsHandler() (http.Handler, error) {
-	opts := collectorOptions()
+	cs, err := metrics.Registry.Metrics(strings.Split(*feats, ",")...)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []collector.Option{collector.WithMetrics(cs...)}
+
+	if *timeout != collector.DefaultTimeout {
+		opts = append(opts, collector.WithTimeout(*timeout))
+	}
+
+	if *tls {
+		opts = append(opts, collector.WithTLS(*insecure))
+	}
+
 	nc, err := collector.NewCollector(cfg, opts...)
 	if err != nil {
 		return nil, err
@@ -183,91 +181,4 @@ func createMetricsHandler() (http.Handler, error) {
 			ErrorLog:      log.New(),
 			ErrorHandling: promhttp.ContinueOnError,
 		}), nil
-}
-
-func collectorOptions() []collector.Option {
-	var opts []collector.Option
-
-	if *withBgp || cfg.Features.BGP {
-		opts = append(opts, collector.WithBGP())
-	}
-
-	if *withRoutes || cfg.Features.Routes {
-		opts = append(opts, collector.WithRoutes())
-	}
-
-	if *withDHCP || cfg.Features.DHCP {
-		opts = append(opts, collector.WithDHCP())
-	}
-
-	if *withDHCPL || cfg.Features.DHCPL {
-		opts = append(opts, collector.WithDHCPL())
-	}
-
-	if *withDHCPv6 || cfg.Features.DHCPv6 {
-		opts = append(opts, collector.WithDHCPv6())
-	}
-
-	if *withFirmware || cfg.Features.Firmware {
-		opts = append(opts, collector.WithFirmware())
-	}
-
-	if *withHealth || cfg.Features.Health {
-		opts = append(opts, collector.WithHealth())
-	}
-
-	if *withPOE || cfg.Features.POE {
-		opts = append(opts, collector.WithPOE())
-	}
-
-	if *withPools || cfg.Features.Pools {
-		opts = append(opts, collector.WithPools())
-	}
-
-	if *withOptics || cfg.Features.Optics {
-		opts = append(opts, collector.WithOptics())
-	}
-
-	if *withW60G || cfg.Features.W60G {
-		opts = append(opts, collector.WithW60G())
-	}
-
-	if *withWlanSTA || cfg.Features.WlanSTA {
-		opts = append(opts, collector.WithWlanSTA())
-	}
-
-	if *withWlanIF || cfg.Features.WlanIF {
-		opts = append(opts, collector.WithWlanIF())
-	}
-
-	if *withMonitor || cfg.Features.Monitor {
-		opts = append(opts, collector.Monitor())
-
-	}
-
-	if *withIpsec || cfg.Features.Ipsec {
-		opts = append(opts, collector.WithIpsec())
-	}
-
-	if *withConntrack || cfg.Features.Conntrack {
-		opts = append(opts, collector.WithConntrack())
-	}
-
-	if *withLte || cfg.Features.Lte {
-		opts = append(opts, collector.WithLte())
-	}
-
-	if *withNetwatch || cfg.Features.Netwatch {
-		opts = append(opts, collector.WithNetwatch())
-	}
-
-	if *timeout != collector.DefaultTimeout {
-		opts = append(opts, collector.WithTimeout(*timeout))
-	}
-
-	if *tls {
-		opts = append(opts, collector.WithTLS(*insecure))
-	}
-
-	return opts
 }

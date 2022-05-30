@@ -1,4 +1,4 @@
-package collector
+package internal
 
 import (
 	"fmt"
@@ -7,6 +7,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/routeros.v2/proto"
+
+	"mikrotik-exporter/internal/collector"
+	"mikrotik-exporter/internal/helper"
 )
 
 type netwatchCollector struct {
@@ -14,7 +17,7 @@ type netwatchCollector struct {
 	descriptions map[string]*prometheus.Desc
 }
 
-func newNetwatchCollector() routerOSCollector {
+func newNetwatchCollector() collector.Collector {
 	c := &netwatchCollector{}
 	c.init()
 	return c
@@ -25,17 +28,17 @@ func (c *netwatchCollector) init() {
 	labelNames := []string{"name", "address", "host", "comment"}
 	c.descriptions = make(map[string]*prometheus.Desc)
 	for _, p := range c.props[1:] {
-		c.descriptions[p] = descriptionForPropertyName("netwatch", p, labelNames)
+		c.descriptions[p] = helper.DescriptionForPropertyName("netwatch", p, labelNames)
 	}
 }
 
-func (c *netwatchCollector) describe(ch chan<- *prometheus.Desc) {
+func (c *netwatchCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range c.descriptions {
 		ch <- d
 	}
 }
 
-func (c *netwatchCollector) collect(ctx *collectorContext) error {
+func (c *netwatchCollector) Collect(ctx *collector.Context) error {
 	stats, err := c.fetch(ctx)
 	if err != nil {
 		return err
@@ -48,11 +51,11 @@ func (c *netwatchCollector) collect(ctx *collectorContext) error {
 	return nil
 }
 
-func (c *netwatchCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, error) {
-	reply, err := ctx.client.Run("/tool/netwatch/print", "?disabled=false", "=.proplist="+strings.Join(c.props, ","))
+func (c *netwatchCollector) fetch(ctx *collector.Context) ([]*proto.Sentence, error) {
+	reply, err := ctx.Client.Run("/tool/netwatch/print", "?disabled=false", "=.proplist="+strings.Join(c.props, ","))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"device": ctx.device.Name,
+			"device": ctx.Device.Name,
 			"error":  err,
 		}).Error("error fetching netwatch metrics")
 		return nil, err
@@ -61,7 +64,7 @@ func (c *netwatchCollector) fetch(ctx *collectorContext) ([]*proto.Sentence, err
 	return reply.Re, nil
 }
 
-func (c *netwatchCollector) collectForStat(re *proto.Sentence, ctx *collectorContext) {
+func (c *netwatchCollector) collectForStat(re *proto.Sentence, ctx *collector.Context) {
 	host := re.Map["host"]
 	comment := re.Map["comment"]
 
@@ -70,7 +73,7 @@ func (c *netwatchCollector) collectForStat(re *proto.Sentence, ctx *collectorCon
 	}
 }
 
-func (c *netwatchCollector) collectMetricForProperty(property, host, comment string, re *proto.Sentence, ctx *collectorContext) {
+func (c *netwatchCollector) collectMetricForProperty(property, host, comment string, re *proto.Sentence, ctx *collector.Context) {
 	desc := c.descriptions[property]
 	if value := re.Map[property]; value != "" {
 		var numericValue float64
@@ -83,13 +86,13 @@ func (c *netwatchCollector) collectMetricForProperty(property, host, comment str
 			numericValue = -1
 		default:
 			log.WithFields(log.Fields{
-				"device":   ctx.device.Name,
+				"device":   ctx.Device.Name,
 				"host":     host,
 				"property": property,
 				"value":    value,
 				"error":    fmt.Errorf("unexpected netwatch status value"),
 			}).Error("error parsing netwatch metric value")
 		}
-		ctx.ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, numericValue, ctx.device.Name, ctx.device.Address, host, comment)
+		ctx.Ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, numericValue, ctx.Device.Name, ctx.Device.Address, host, comment)
 	}
 }
