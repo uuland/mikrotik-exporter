@@ -67,7 +67,7 @@ func (c *routesCollector) colllectForIPVersion(ipVersion, topic string, ctx *col
 }
 
 func (c *routesCollector) colllectCount(ipVersion, topic string, ctx *collector.Context) error {
-	reply, err := ctx.Client.Run(fmt.Sprintf("/%s/route/print", topic), "?disabled=false", "=count-only=")
+	reply, err := ctx.Client.Run(fmt.Sprintf("/%s/route/print", topic), "=count-only=")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"ip_version": ipVersion,
@@ -95,7 +95,7 @@ func (c *routesCollector) colllectCount(ipVersion, topic string, ctx *collector.
 }
 
 func (c *routesCollector) colllectCountProtcol(ipVersion, topic, protocol string, ctx *collector.Context) error {
-	reply, err := ctx.Client.Run(fmt.Sprintf("/%s/route/print", topic), "?disabled=false", fmt.Sprintf("?%s", protocol), "=count-only=")
+	reply, err := ctx.Client.Run(fmt.Sprintf("/%s/route/print", topic), fmt.Sprintf("?%s", protocol), "=count-only=")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"ip_version": ipVersion,
