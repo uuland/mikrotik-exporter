@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	Registry.Add("pool", newPoolCollector)
+	Registry.Add("pools", newPoolCollector)
 }
 
 type poolCollector struct {
