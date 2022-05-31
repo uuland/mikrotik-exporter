@@ -19,11 +19,6 @@ import (
 	"mikrotik-exporter/internal/helper"
 )
 
-const (
-	// DefaultTimeout defines the default timeout when connecting to a router
-	DefaultTimeout = 5 * time.Second
-)
-
 var (
 	scrapeDurationDesc = helper.DescriptionForPropertyNameHelpText(
 		"scrape", "collector_duration_seconds",
@@ -54,7 +49,7 @@ func NewCollector(cfg *config.Config, opts ...Option) (prometheus.Collector, err
 
 	c := &collector{
 		devices:    cfg.Devices,
-		timeout:    DefaultTimeout,
+		timeout:    5 * time.Second,
 		collectors: make([]Collector, 0),
 	}
 

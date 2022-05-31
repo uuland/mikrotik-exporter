@@ -25,7 +25,7 @@ func (r *registry) Add(name string, init initialize) {
 	r.features[name] = init
 }
 
-func (r *registry) Metrics(feats ...string) ([]collector.Collector, error) {
+func (r *registry) Load(feats ...string) ([]collector.Collector, error) {
 	var cs []collector.Collector
 
 	for _, feat := range feats {

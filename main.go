@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -21,21 +22,21 @@ import (
 
 // single device can be defined via CLI flags, multiple via config file.
 var (
+	listen      = flag.String("port", ":9436", "port number to listen on")
 	address     = flag.String("address", "", "address of the device to monitor")
 	configFile  = flag.String("config-file", "", "config file to load")
 	device      = flag.String("device", "", "single device to monitor")
+	devPort     = flag.String("deviceport", "8728", "port for single device")
+	user        = flag.String("user", "", "user for authentication with single device")
+	password    = flag.String("password", "", "password for authentication for single device")
+	timeout     = flag.Duration("timeout", 5*time.Second, "timeout when connecting to devices")
+	tls         = flag.Bool("tls", false, "use tls to connect to routers")
 	insecure    = flag.Bool("insecure", false, "skips verification of server certificate when using TLS (not recommended)")
+	features    = flag.String("features", "interface,resource", "enabled features")
+	metricsPath = flag.String("path", "/metrics", "path to answer requests on")
 	logFormat   = flag.String("log-format", "json", "logformat text or json (default json)")
 	logLevel    = flag.String("log-level", "info", "log level")
-	metricsPath = flag.String("path", "/metrics", "path to answer requests on")
-	password    = flag.String("password", "", "password for authentication for single device")
-	deviceport  = flag.String("deviceport", "8728", "port for single device")
-	port        = flag.String("port", ":9436", "port number to listen on")
-	timeout     = flag.Duration("timeout", collector.DefaultTimeout, "timeout when connecting to devices")
-	tls         = flag.Bool("tls", false, "use tls to connect to routers")
-	user        = flag.String("user", "", "user for authentication with single device")
-	feats       = flag.String("features", "", "with features")
-	ver         = flag.Bool("version", false, "find the version of binary")
+	showVersion = flag.Bool("version", false, "show the version of binary")
 
 	cfg *config.Config
 
@@ -50,7 +51,7 @@ func init() {
 func main() {
 	flag.Parse()
 
-	if *ver {
+	if *showVersion {
 		fmt.Printf("\nVersion:   %s\nShort SHA: %s\n\n", appVersion, shortSha)
 		os.Exit(0)
 	}
@@ -118,7 +119,7 @@ func loadConfigFromFlags() (*config.Config, error) {
 				Address:  *address,
 				User:     *user,
 				Password: *password,
-				Port:     *deviceport,
+				Port:     *devPort,
 			},
 		},
 	}, nil
@@ -145,20 +146,19 @@ func startServer() {
 			</html>`))
 	})
 
-	log.Info("Listening on ", *port)
-	log.Fatal(http.ListenAndServe(*port, nil))
+	log.Info("Listening on ", *listen)
+	log.Fatal(http.ListenAndServe(*listen, nil))
 }
 
 func createMetricsHandler() (http.Handler, error) {
-	cs, err := metrics.Registry.Metrics(strings.Split(*feats, ",")...)
+	feats, err := metrics.Registry.Load(strings.Split(*features, ",")...)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []collector.Option{collector.WithMetrics(cs...)}
-
-	if *timeout != collector.DefaultTimeout {
-		opts = append(opts, collector.WithTimeout(*timeout))
+	opts := []collector.Option{
+		collector.WithTimeout(*timeout),
+		collector.WithMetrics(feats...),
 	}
 
 	if *tls {
@@ -171,8 +171,7 @@ func createMetricsHandler() (http.Handler, error) {
 	}
 
 	registry := prometheus.NewRegistry()
-	err = registry.Register(nc)
-	if err != nil {
+	if err := registry.Register(nc); err != nil {
 		return nil, err
 	}
 

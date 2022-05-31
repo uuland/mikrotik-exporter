@@ -1,4 +1,4 @@
-package internal
+package metrics
 
 import (
 	"strings"
@@ -11,6 +11,10 @@ import (
 	"mikrotik-exporter/internal/collector"
 	"mikrotik-exporter/internal/helper"
 )
+
+func init() {
+	Registry.Add("monitor", newMonitorCollector)
+}
 
 type monitorCollector struct {
 	props        []string // props from monitor, can add other ether props later if needed

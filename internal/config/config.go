@@ -11,27 +11,8 @@ import (
 
 // Config represents the configuration for the exporter
 type Config struct {
-	Devices  []*Device `yaml:"devices"`
-	Features struct {
-		BGP       bool `yaml:"bgp,omitempty"`
-		Conntrack bool `yaml:"conntrack,omitempty"`
-		DHCP      bool `yaml:"dhcp,omitempty"`
-		DHCPL     bool `yaml:"dhcpl,omitempty"`
-		DHCPv6    bool `yaml:"dhcpv6,omitempty"`
-		Firmware  bool `yaml:"firmware,omitempty"`
-		Health    bool `yaml:"health,omitempty"`
-		Routes    bool `yaml:"routes,omitempty"`
-		POE       bool `yaml:"poe,omitempty"`
-		Pools     bool `yaml:"pools,omitempty"`
-		Optics    bool `yaml:"optics,omitempty"`
-		W60G      bool `yaml:"w60g,omitempty"`
-		WlanSTA   bool `yaml:"wlansta,omitempty"`
-		WlanIF    bool `yaml:"wlanif,omitempty"`
-		Monitor   bool `yaml:"monitor,omitempty"`
-		Ipsec     bool `yaml:"ipsec,omitempty"`
-		Lte       bool `yaml:"lte,omitempty"`
-		Netwatch  bool `yaml:"netwatch,omitempty"`
-	} `yaml:"features,omitempty"`
+	Devices  []*Device       `yaml:"devices"`
+	Features map[string]bool `yaml:"features,omitempty"`
 }
 
 // Device represents a target device

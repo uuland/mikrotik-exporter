@@ -1,4 +1,4 @@
-package internal
+package metrics
 
 import (
 	"fmt"
@@ -12,6 +12,10 @@ import (
 	"mikrotik-exporter/internal/collector"
 	"mikrotik-exporter/internal/helper"
 )
+
+func init() {
+	Registry.Add("wlanif", newWlanIFCollector)
+}
 
 type wlanIFCollector struct {
 	props        []string

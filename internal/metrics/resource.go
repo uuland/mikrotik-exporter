@@ -22,15 +22,15 @@ func init() {
 	Registry.Add("resource", newResourceCollector)
 }
 
+type resourceCollector struct {
+	props        []string
+	descriptions map[string]*prometheus.Desc
+}
+
 func newResourceCollector() collector.Collector {
 	c := &resourceCollector{}
 	c.init()
 	return c
-}
-
-type resourceCollector struct {
-	props        []string
-	descriptions map[string]*prometheus.Desc
 }
 
 func (c *resourceCollector) init() {

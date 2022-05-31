@@ -1,4 +1,4 @@
-package internal
+package metrics
 
 import (
 	"strconv"
@@ -11,6 +11,10 @@ import (
 	"mikrotik-exporter/internal/collector"
 	"mikrotik-exporter/internal/helper"
 )
+
+func init() {
+	Registry.Add("interface", newInterfaceCollector)
+}
 
 type interfaceCollector struct {
 	props        []string

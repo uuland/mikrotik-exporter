@@ -19,18 +19,18 @@ func TestShouldParse(t *testing.T) {
 
 	assertDevice("test1", "192.168.1.1", "foo", "bar", c.Devices[0], t)
 	assertDevice("test2", "192.168.2.1", "test", "123", c.Devices[1], t)
-	assertFeature("BGP", c.Features.BGP, t)
-	assertFeature("Conntrack", c.Features.Conntrack, t)
-	assertFeature("DHCP", c.Features.DHCP, t)
-	assertFeature("DHCPv6", c.Features.DHCPv6, t)
-	assertFeature("Pools", c.Features.Pools, t)
-	assertFeature("Routes", c.Features.Routes, t)
-	assertFeature("Optics", c.Features.Optics, t)
-	assertFeature("WlanSTA", c.Features.WlanSTA, t)
-	assertFeature("WlanIF", c.Features.WlanIF, t)
-	assertFeature("Ipsec", c.Features.Ipsec, t)
-	assertFeature("Lte", c.Features.Lte, t)
-	assertFeature("Netwatch", c.Features.Netwatch, t)
+	assertFeature("BGP", getFeature(c, "bgp"), t)
+	assertFeature("Conntrack", getFeature(c, "conntrack"), t)
+	assertFeature("DHCP", getFeature(c, "dhcp"), t)
+	assertFeature("DHCPv6", getFeature(c, "dhcpv6"), t)
+	assertFeature("Pools", getFeature(c, "pools"), t)
+	assertFeature("Routes", getFeature(c, "routes"), t)
+	assertFeature("Optics", getFeature(c, "optics"), t)
+	assertFeature("WlanSTA", getFeature(c, "wlansta"), t)
+	assertFeature("WlanIF", getFeature(c, "wlanif"), t)
+	assertFeature("Ipsec", getFeature(c, "ipsec"), t)
+	assertFeature("Lte", getFeature(c, "lte"), t)
+	assertFeature("Netwatch", getFeature(c, "netwatch"), t)
 }
 
 func loadTestFile(t *testing.T) []byte {
@@ -40,6 +40,11 @@ func loadTestFile(t *testing.T) []byte {
 	}
 
 	return b
+}
+
+func getFeature(c *Config, name string) bool {
+	v, e := c.Features[name]
+	return e && v
 }
 
 func assertDevice(name, address, user, password string, c *Device, t *testing.T) {

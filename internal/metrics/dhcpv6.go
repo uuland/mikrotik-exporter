@@ -1,4 +1,4 @@
-package internal
+package metrics
 
 import (
 	"fmt"
@@ -10,6 +10,10 @@ import (
 	"mikrotik-exporter/internal/collector"
 	"mikrotik-exporter/internal/helper"
 )
+
+func init() {
+	Registry.Add("dhcpv6", newDHCPv6Collector)
+}
 
 type dhcpv6Collector struct {
 	bindingCountDesc *prometheus.Desc

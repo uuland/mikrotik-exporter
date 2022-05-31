@@ -16,15 +16,15 @@ func init() {
 	Registry.Add("health", newhealthCollector)
 }
 
+type healthCollector struct {
+	props        []string
+	descriptions map[string]*prometheus.Desc
+}
+
 func newhealthCollector() collector.Collector {
 	c := &healthCollector{}
 	c.init()
 	return c
-}
-
-type healthCollector struct {
-	props        []string
-	descriptions map[string]*prometheus.Desc
 }
 
 func (c *healthCollector) init() {

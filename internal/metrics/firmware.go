@@ -1,4 +1,4 @@
-package internal
+package metrics
 
 import (
 	"strings"
@@ -9,6 +9,10 @@ import (
 	"mikrotik-exporter/internal/collector"
 	"mikrotik-exporter/internal/helper"
 )
+
+func init() {
+	Registry.Add("firmware", newFirmwareCollector)
+}
 
 type firmwareCollector struct {
 	props       []string
