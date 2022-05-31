@@ -38,9 +38,6 @@ type collector struct {
 	insecureTLS bool
 }
 
-// Option applies options to collector
-type Option func(*collector)
-
 // NewCollector creates a collector instance
 func NewCollector(cfg *config.Config, opts ...Option) (prometheus.Collector, error) {
 	log.WithFields(log.Fields{

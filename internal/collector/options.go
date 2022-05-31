@@ -4,6 +4,9 @@ import (
 	"time"
 )
 
+// Option applies options to collector
+type Option func(*collector)
+
 // WithMetrics add more feature to collector
 func WithMetrics(cs ...Collector) Option {
 	return func(c *collector) {

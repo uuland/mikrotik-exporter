@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -58,7 +57,7 @@ func (c *healthCollector) Collect(ctx *collector.Context) error {
 }
 
 func (c *healthCollector) fetch(ctx *collector.Context) ([]*proto.Sentence, error) {
-	reply, err := ctx.Client.Run("/system/health/print", "=.proplist="+strings.Join(c.props, ","))
+	reply, err := ctx.Client.Run("/system/health/print", "=.proplist=name,value,type")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"device": ctx.Device.Name,
@@ -71,25 +70,20 @@ func (c *healthCollector) fetch(ctx *collector.Context) ([]*proto.Sentence, erro
 }
 
 func (c *healthCollector) collectForStat(re *proto.Sentence, ctx *collector.Context) {
-	for _, p := range c.props[:3] {
-		c.collectMetricForProperty(p, re, ctx)
-	}
+	c.collectMetricForProperty(re.Map["name"], re.Map["value"], ctx)
 }
 
-func (c *healthCollector) collectMetricForProperty(property string, re *proto.Sentence, ctx *collector.Context) {
-	var v float64
-	var err error
-
-	if re.Map[property] == "" {
+func (c *healthCollector) collectMetricForProperty(property, value string, ctx *collector.Context) {
+	if value == "" {
 		return
 	}
-	v, err = strconv.ParseFloat(re.Map[property], 64)
 
+	v, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"device":   ctx.Device.Name,
 			"property": property,
-			"value":    re.Map[property],
+			"value":    value,
 			"error":    err,
 		}).Error("error parsing system health metric value")
 		return

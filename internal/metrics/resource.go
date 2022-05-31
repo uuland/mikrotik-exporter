@@ -1,11 +1,8 @@
 package metrics
 
 import (
-	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -14,9 +11,6 @@ import (
 	"mikrotik-exporter/internal/collector"
 	"mikrotik-exporter/internal/helper"
 )
-
-var uptimeRegex = regexp.MustCompile(`(?:(\d*)w)?(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?`)
-var uptimeParts = [5]time.Duration{time.Hour * 168, time.Hour * 24, time.Hour, time.Minute, time.Second}
 
 func init() {
 	Registry.Add("resource", newResourceCollector)
@@ -91,7 +85,7 @@ func (c *resourceCollector) collectMetricForProperty(property string, re *proto.
 	version := re.Map["version"]
 
 	if property == "uptime" {
-		v, err = parseUptime(re.Map[property])
+		v, err = helper.ParseDuration(re.Map[property])
 	} else {
 		if re.Map[property] == "" {
 			return
@@ -111,31 +105,4 @@ func (c *resourceCollector) collectMetricForProperty(property string, re *proto.
 
 	desc := c.descriptions[property]
 	ctx.Ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, v, ctx.Device.Name, ctx.Device.Address, boardname, version)
-}
-
-func parseUptime(uptime string) (float64, error) {
-	var u time.Duration
-
-	reMatch := uptimeRegex.FindAllStringSubmatch(uptime, -1)
-
-	// should get one and only one match back on the regex
-	if len(reMatch) != 1 {
-		return 0, fmt.Errorf("invalid uptime value sent to regex")
-	}
-
-	for i, match := range reMatch[0] {
-		if match != "" && i != 0 {
-			v, err := strconv.Atoi(match)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"uptime": uptime,
-					"value":  match,
-					"error":  err,
-				}).Error("error parsing uptime field value")
-				return float64(0), err
-			}
-			u += time.Duration(v) * uptimeParts[i-1]
-		}
-	}
-	return u.Seconds(), nil
 }
